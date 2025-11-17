@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { EmailTemplate } from '../../../../components/forms/templateEmails/expert-template';
+import EmailTemplate from '@/app/components/forms/templateEmails/demo-template';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
