@@ -5,6 +5,22 @@ import EmailTemplate from '@/app/components/forms/templateEmails/contact-templat
 
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const allowedOrigin = process.env.ALLOWED_ORIGIN ?? 'https://cobrasis.com.br';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': allowedOrigin,
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+};
+
+const withCors = <T>(response: NextResponse<T>) => {
+  Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+  return response;
+};
+
+export function OPTIONS() {
+  return withCors(new NextResponse(null, { status: 204 }));
+}
 
 interface ContactPayload {
   name?: string;
@@ -20,9 +36,11 @@ export async function POST(request: Request) {
   const message = json?.message?.trim();
 
   if (!name || !email || !message) {
-    return NextResponse.json(
-      { error: 'Missing required fields.' },
-      { status: 400 },
+    return withCors(
+      NextResponse.json(
+        { error: 'Missing required fields.' },
+        { status: 400 },
+      ),
     );
   }
 
@@ -40,18 +58,22 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Erro do Resend:', error);
-      return NextResponse.json(
-        { error: error.message ?? 'Falha ao enviar e-mail.' },
-        { status: 502 },
+      return withCors(
+        NextResponse.json(
+          { error: error.message ?? 'Falha ao enviar e-mail.' },
+          { status: 502 },
+        ),
       );
     }
 
-    return NextResponse.json({ id: data?.id });
+    return withCors(NextResponse.json({ id: data?.id }));
   } catch (error) {
     console.error('Erro inesperado ao enviar e-mail.', error);
-    return NextResponse.json(
-      { error: 'Erro interno ao enviar e-mail.' },
-      { status: 500 },
+    return withCors(
+      NextResponse.json(
+        { error: 'Erro interno ao enviar e-mail.' },
+        { status: 500 },
+      ),
     );
   }
 }
