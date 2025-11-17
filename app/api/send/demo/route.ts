@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import EmailTemplate from '@/app/components/forms/templateEmails/demo-template';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const allowedOrigin = process.env.ALLOWED_ORIGIN ?? 'https://cobrasis.com.br';
 const corsHeaders = {
   'Access-Control-Allow-Origin': allowedOrigin,
@@ -28,22 +27,58 @@ interface ContactPayload {
 }
 
 export async function POST(request: Request) {
-  const json = (await request.json().catch(() => null)) as ContactPayload | null;
-
-  const name = json?.name?.trim();
-  const email = json?.email?.trim();
-  const message = json?.message?.trim();
-
-  if (!name || !email || !message) {
-    return withCors(
-      NextResponse.json(
-        { error: 'Missing required fields.' },
-        { status: 400 },
-      ),
-    );
-  }
-
   try {
+    // Validação de variáveis de ambiente
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY não configurada');
+      return withCors(
+        NextResponse.json(
+          { error: 'Configuração do servidor incompleta.' },
+          { status: 500 },
+        ),
+      );
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    // Parse do JSON
+    let json: ContactPayload | null = null;
+    try {
+      json = await request.json();
+    } catch (parseError) {
+      console.error('Erro ao fazer parse do JSON:', parseError);
+      return withCors(
+        NextResponse.json(
+          { error: 'Formato de requisição inválido.' },
+          { status: 400 },
+        ),
+      );
+    }
+
+    const name = json?.name?.trim();
+    const email = json?.email?.trim();
+    const message = json?.message?.trim();
+
+    if (!name || !email || !message) {
+      return withCors(
+        NextResponse.json(
+          { error: 'Missing required fields.' },
+          { status: 400 },
+        ),
+      );
+    }
+
+    // Validação de email básica
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return withCors(
+        NextResponse.json(
+          { error: 'Email inválido.' },
+          { status: 400 },
+        ),
+      );
+    }
+
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'delivered@resend.dev',
       to: [process.env.RESEND_TO_EMAIL ?? 'contato@cobrasis.com.br'],
@@ -67,10 +102,11 @@ export async function POST(request: Request) {
 
     return withCors(NextResponse.json({ id: data?.id }));
   } catch (error) {
-    console.error('Erro inesperado ao enviar e-mail.', error);
+    console.error('Erro inesperado ao enviar e-mail:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return withCors(
       NextResponse.json(
-        { error: 'Erro interno ao enviar e-mail.' },
+        { error: 'Erro interno ao enviar e-mail.', details: errorMessage },
         { status: 500 },
       ),
     );
